@@ -3,27 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trening Dashboard</title>
+    <title>Trening Receiver</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; margin: 0; }
-        google-cast-launcher { width: 32px; height: 32px; --connected-color: #4361EE; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: white; }
+        #config-overlay { background: rgba(15, 23, 42, 0.95); }
     </style>
 </head>
-<body class="bg-slate-800">
+<body class="h-screen overflow-hidden">
 
-    <div class="flex h-screen p-4 gap-4 overflow-hidden">
+    <div id="config-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-6">
+        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-md w-full">
+            <h2 class="text-xl font-bold mb-4 text-blue-400">Konfiguracja Receivera</h2>
+            <p class="text-sm text-slate-400 mb-6">Wprowadź swój App ID zarejestrowany w Google Cast Console.</p>
+            
+            <input type="text" id="app-id-input" placeholder="Wpisz Application ID" 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white focus:outline-none focus:border-blue-500">
+            
+            <button id="start-receiver-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all">
+                URUCHOM RECEIVER
+            </button>
+        </div>
+    </div>
+
+    <div id="main-ui" class="flex h-screen p-4 gap-4 opacity-20 transition-opacity duration-1000">
         <div class="flex-1 flex gap-4">
-            <camera-view title="Widok przedni" status="GOTOWY" time="00:00"></camera-view>
-            <camera-view title="Widok boczny" status="PRZYKŁAD"></camera-view>
+            <camera-view title="Widok ciebie" status="LIVE" time="00:00"></camera-view>
+            <camera-view title="Widok wzorcowy" status="AI ACTIVE"></camera-view>
         </div>
         
-        <div class="w-[400px] flex-shrink-0 relative">
-            <div class="absolute top-4 right-8 z-10">
-                <google-cast-launcher id="cast-button"></google-cast-launcher>
-            </div>
+        <div class="w-[450px] flex-shrink-0">
             <exercise-sidebar></exercise-sidebar>
         </div>
     </div>
@@ -33,7 +44,29 @@
         import './components/StatBox.js';
         import './components/ExerciseListItem.js';
         import './components/ExerciseSidebar.js';
-        import './cast.js';
+
+        const configOverlay = document.getElementById('config-overlay');
+        const mainUi = document.getElementById('main-ui');
+        const startBtn = document.getElementById('start-receiver-btn');
+        const appIdInput = document.getElementById('app-id-input');
+
+        startBtn.addEventListener('click', () => {
+            const appId = appIdInput.value.trim();
+            if (!appId) return alert("Wprowadź ID");
+
+            configOverlay.classList.add('hidden');
+            mainUi.classList.remove('opacity-20');
+
+            const context = cast.framework.CastReceiverContext.getInstance();
+            
+            const playerManager = context.getPlayerManager();
+            
+            const options = new cast.framework.CastReceiverOptions();
+            options.maxInactivity = 3600;
+
+            context.start(options);
+            console.log("Receiver uruchomiony z ID:", appId);
+        });
     </script>
 </body>
 </html>
