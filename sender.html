@@ -10,9 +10,12 @@
 <body class="bg-slate-900 text-white min-h-screen p-6 font-sans">
     
     <div class="max-w-md mx-auto space-y-6">
-        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <h2 class="text-xl font-bold mb-4">1. Uruchom Kamerę</h2>
-            <div class="aspect-video bg-black rounded-lg overflow-hidden mb-4 relative">
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                1. Kamera
+            </h2>
+            <div class="aspect-video bg-black rounded-lg overflow-hidden mb-4 relative ring-1 ring-slate-700">
                 <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
             </div>
             <button id="start-cam-btn" class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-bold transition-all">
@@ -20,17 +23,23 @@
             </button>
         </div>
 
-        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <h2 class="text-xl font-bold mb-4">2. Połącz z Receiverem</h2>
-            <input type="text" id="target-id-input" placeholder="Wpisz ID Receivera (np. tv-salon)" 
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                2. Połączenie
+            </h2>
+            <input type="text" id="target-id-input" placeholder="Wpisz ID Receivera" 
                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white focus:outline-none focus:border-blue-500">
-            <button id="connect-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all">
+            <button id="connect-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all disabled:opacity-50">
                 Połącz i Przesyłaj
             </button>
         </div>
 
-        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <h2 class="text-xl font-bold mb-4">3. Wyślij Dane (JSON)</h2>
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                3. Dane JSON
+            </h2>
             <textarea id="json-input" rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white font-mono text-sm focus:outline-none focus:border-blue-500">
 {
   "reps": 5,
@@ -54,10 +63,14 @@
         let localStream = null;
         let peer = null;
         let dataConnection = null;
+        let activeCall = null;
 
         startCamBtn.addEventListener('click', async () => {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user" }, 
+                    audio: false 
+                });
                 localVideo.srcObject = localStream;
                 startCamBtn.classList.replace('bg-slate-700', 'bg-green-700');
                 startCamBtn.innerText = "Kamera aktywna";
@@ -71,11 +84,20 @@
             if (!targetId) return alert("Wprowadź ID Receivera");
             if (!localStream) return alert("Najpierw włącz kamerę");
 
-            peer = new Peer();
+            connectBtn.disabled = true;
+            connectBtn.innerText = "Łączenie...";
+
+            peer = new Peer({
+                config: {
+                    'iceServers': [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
+            });
 
             peer.on('open', () => {
-                const call = peer.call(targetId, localStream);
-                
+                activeCall = peer.call(targetId, localStream);
                 dataConnection = peer.connect(targetId);
                 
                 dataConnection.on('open', () => {
@@ -84,7 +106,16 @@
                     sendDataBtn.removeAttribute('disabled');
                 });
 
-                dataConnection.on('error', (err) => alert(err));
+                dataConnection.on('close', resetSenderUI);
+                dataConnection.on('error', (err) => {
+                    console.error(err);
+                    resetSenderUI();
+                });
+            });
+
+            peer.on('error', (err) => {
+                alert("Błąd połączenia: " + err.type);
+                resetSenderUI();
             });
         });
 
@@ -92,12 +123,32 @@
             if (dataConnection && dataConnection.open) {
                 const rawData = jsonInput.value;
                 try {
-                    JSON.parse(rawData);
-                    dataConnection.send(rawData);
+                    const parsed = JSON.parse(rawData);
+                    dataConnection.send(parsed);
                 } catch (e) {
                     alert("Nieprawidłowy format JSON!");
                 }
             }
+        });
+
+        function resetSenderUI() {
+            if (dataConnection) dataConnection.close();
+            if (activeCall) activeCall.close();
+            if (peer) peer.destroy();
+
+            peer = null;
+            dataConnection = null;
+            activeCall = null;
+
+            connectBtn.disabled = false;
+            connectBtn.classList.remove('bg-green-600');
+            connectBtn.classList.add('bg-blue-600');
+            connectBtn.innerText = "Połącz i Przesyłaj";
+            sendDataBtn.setAttribute('disabled', 'true');
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (peer) peer.destroy();
         });
     </script>
 </body>
