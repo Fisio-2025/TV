@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trening Sender WebRTC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-6 font-sans">
+    
+    <div class="max-w-md mx-auto space-y-6">
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+            <h2 class="text-xl font-bold mb-4">1. Uruchom Kamerę</h2>
+            <div class="aspect-video bg-black rounded-lg overflow-hidden mb-4 relative">
+                <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            </div>
+            <button id="start-cam-btn" class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-bold transition-all">
+                Włącz Kamerę
+            </button>
+        </div>
+
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+            <h2 class="text-xl font-bold mb-4">2. Połącz z Receiverem</h2>
+            <input type="text" id="target-id-input" placeholder="Wpisz ID Receivera (np. tv-salon)" 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white focus:outline-none focus:border-blue-500">
+            <button id="connect-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all">
+                Połącz i Przesyłaj
+            </button>
+        </div>
+
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+            <h2 class="text-xl font-bold mb-4">3. Wyślij Dane (JSON)</h2>
+            <textarea id="json-input" rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white font-mono text-sm focus:outline-none focus:border-blue-500">
+{
+  "reps": 5,
+  "title": "Trening klatki piersiowej"
+}
+            </textarea>
+            <button id="send-data-btn" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                Wyślij JSON
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const localVideo = document.getElementById('local-video');
+        const startCamBtn = document.getElementById('start-cam-btn');
+        const connectBtn = document.getElementById('connect-btn');
+        const targetIdInput = document.getElementById('target-id-input');
+        const sendDataBtn = document.getElementById('send-data-btn');
+        const jsonInput = document.getElementById('json-input');
+
+        let localStream = null;
+        let peer = null;
+        let dataConnection = null;
+
+        startCamBtn.addEventListener('click', async () => {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                localVideo.srcObject = localStream;
+                startCamBtn.classList.replace('bg-slate-700', 'bg-green-700');
+                startCamBtn.innerText = "Kamera aktywna";
+            } catch (err) {
+                alert("Błąd kamery: " + err.message);
+            }
+        });
+
+        connectBtn.addEventListener('click', () => {
+            const targetId = targetIdInput.value.trim();
+            if (!targetId) return alert("Wprowadź ID Receivera");
+            if (!localStream) return alert("Najpierw włącz kamerę");
+
+            peer = new Peer();
+
+            peer.on('open', () => {
+                const call = peer.call(targetId, localStream);
+                
+                dataConnection = peer.connect(targetId);
+                
+                dataConnection.on('open', () => {
+                    connectBtn.classList.replace('bg-blue-600', 'bg-green-600');
+                    connectBtn.innerText = "Połączono!";
+                    sendDataBtn.removeAttribute('disabled');
+                });
+
+                dataConnection.on('error', (err) => alert(err));
+            });
+        });
+
+        sendDataBtn.addEventListener('click', () => {
+            if (dataConnection && dataConnection.open) {
+                const rawData = jsonInput.value;
+                try {
+                    JSON.parse(rawData);
+                    dataConnection.send(rawData);
+                } catch (e) {
+                    alert("Nieprawidłowy format JSON!");
+                }
+            }
+        });
+    </script>
+</body>
+</html>

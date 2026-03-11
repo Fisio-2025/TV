@@ -1,40 +1,60 @@
-window.__onGCastApiAvailable = function(isAvailable) {
-    if (isAvailable) {
-        initializeCastApi();
-    }
-};
+import './components/CameraView.js';
+import './components/StatBox.js';
+import './components/ExerciseListItem.js';
+import './components/ExerciseSidebar.js';
 
-function initializeCastApi() {
-    cast.framework.CastContext.getInstance().setOptions({
-        receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+const configOverlay = document.getElementById('config-overlay');
+const mainUi = document.getElementById('main-ui');
+const startBtn = document.getElementById('start-receiver-btn');
+const peerIdInput = document.getElementById('peer-id-input');
+
+let peer = null;
+
+startBtn.addEventListener('click', () => {
+    const id = peerIdInput.value.trim();
+    if (!id) return alert("Wprowadź ID");
+
+    peer = new Peer(id);
+
+    peer.on('open', (assignedId) => {
+        configOverlay.classList.add('hidden');
+        mainUi.classList.remove('hidden');
+        setTimeout(() => mainUi.classList.remove('opacity-20'), 50);
     });
 
-    const context = cast.framework.CastContext.getInstance();
-    context.addEventListener(
-        cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-        function(event) {
-            switch (event.sessionState) {
-                case cast.framework.SessionState.SESSION_STARTED:
-                    console.log('Cast session started');
-                    break;
-                case cast.framework.SessionState.SESSION_ENDED:
-                    console.log('Cast session ended');
-                    break;
+    peer.on('call', (call) => {
+        call.answer();
+        call.on('stream', (remoteStream) => {
+            const videoEl = document.getElementById('remote-video');
+            if (videoEl) {
+                videoEl.srcObject = remoteStream;
             }
-        }
-    );
-}
+        });
+    });
 
-function launchMedia(url) {
-    const session = cast.framework.CastContext.getInstance().getCurrentSession();
-    if (!session) return;
+    peer.on('connection', (conn) => {
+        conn.on('data', (data) => {
+            try {
+                const parsedData = JSON.parse(data);
+                handleIncomingData(parsedData);
+            } catch (e) {
+                console.error(e);
+            }
+        });
+    });
 
-    const mediaInfo = new chrome.cast.media.MediaInfo(url, 'video/mp4');
-    const request = new chrome.cast.media.LoadRequest(mediaInfo);
-    
-    session.loadMedia(request).then(
-        () => console.log('Media loaded'),
-        (errorCode) => console.error('Error code: ' + errorCode)
-    );
+    peer.on('error', (err) => {
+        alert(err.type);
+    });
+});
+
+function handleIncomingData(data) {
+    if (data.reps !== undefined) {
+        const repEl = document.getElementById('stat-powtórzenia');
+        if (repEl) repEl.innerText = data.reps;
+    }
+    if (data.title !== undefined) {
+        const titleEl = document.getElementById('ui-title');
+        if (titleEl) titleEl.innerText = data.title;
+    }
 }
