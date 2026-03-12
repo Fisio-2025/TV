@@ -6,6 +6,7 @@
     <title>Trening Sender WebRTC</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen p-6 font-sans">
     
@@ -17,6 +18,11 @@
             </h2>
             <div class="aspect-video bg-black rounded-lg overflow-hidden mb-4 relative ring-1 ring-slate-700">
                 <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <button id="switch-cam-btn" class="absolute bottom-2 right-2 bg-black/50 hover:bg-black/70 p-2 rounded-lg backdrop-blur-sm border border-white/20 hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
             </div>
             <button id="start-cam-btn" class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-bold transition-all">
                 Włącz Kamerę
@@ -28,11 +34,8 @@
                 <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
                 2. Połączenie
             </h2>
-            <input type="text" id="target-id-input" placeholder="Wpisz ID Receivera" 
-                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white focus:outline-none focus:border-blue-500">
-            <button id="connect-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all disabled:opacity-50">
-                Połącz i Przesyłaj
-            </button>
+            <div id="scan-status" class="text-center text-slate-400 mb-4 text-sm font-medium">Włącz kamerę, aby rozpocząć skanowanie</div>
+            <div id="scanned-id" class="text-center text-2xl font-mono text-white font-bold tracking-widest mb-4 hidden"></div>
         </div>
 
         <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
@@ -55,37 +58,98 @@
     <script>
         const localVideo = document.getElementById('local-video');
         const startCamBtn = document.getElementById('start-cam-btn');
-        const connectBtn = document.getElementById('connect-btn');
-        const targetIdInput = document.getElementById('target-id-input');
+        const switchCamBtn = document.getElementById('switch-cam-btn');
+        const scanStatus = document.getElementById('scan-status');
+        const scannedIdEl = document.getElementById('scanned-id');
         const sendDataBtn = document.getElementById('send-data-btn');
         const jsonInput = document.getElementById('json-input');
+
+        const scanCanvas = document.createElement('canvas');
+        const scanCtx = scanCanvas.getContext('2d');
 
         let localStream = null;
         let peer = null;
         let dataConnection = null;
         let activeCall = null;
+        let isScanning = false;
+        let currentFacingMode = "environment";
+
+        async function getStream(facingMode) {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            return await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: facingMode }, 
+                audio: false 
+            });
+        }
 
         startCamBtn.addEventListener('click', async () => {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "user" }, 
-                    audio: false 
-                });
+                localStream = await getStream(currentFacingMode);
                 localVideo.srcObject = localStream;
                 startCamBtn.classList.replace('bg-slate-700', 'bg-green-700');
                 startCamBtn.innerText = "Kamera aktywna";
+                switchCamBtn.classList.remove('hidden');
+                
+                isScanning = true;
+                scanStatus.innerText = "Skanuj kod QR z ekranu...";
+                scanStatus.classList.replace('text-slate-400', 'text-blue-400');
+                requestAnimationFrame(scanQRCode);
             } catch (err) {
                 alert("Błąd kamery: " + err.message);
             }
         });
 
-        connectBtn.addEventListener('click', () => {
-            const targetId = targetIdInput.value.trim();
-            if (!targetId) return alert("Wprowadź ID Receivera");
-            if (!localStream) return alert("Najpierw włącz kamerę");
+        switchCamBtn.addEventListener('click', async () => {
+            currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+            try {
+                const newStream = await getStream(currentFacingMode);
+                const newVideoTrack = newStream.getVideoTracks()[0];
 
-            connectBtn.disabled = true;
-            connectBtn.innerText = "Łączenie...";
+                if (activeCall && activeCall.peerConnection) {
+                    const sender = activeCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                    if (sender) {
+                        sender.replaceTrack(newVideoTrack);
+                    }
+                }
+
+                localStream = newStream;
+                localVideo.srcObject = localStream;
+            } catch (err) {
+                console.error("Błąd przełączania kamery:", err);
+            }
+        });
+
+        function scanQRCode() {
+            if (!isScanning) return;
+            
+            if (localVideo.readyState === localVideo.HAVE_ENOUGH_DATA) {
+                scanCanvas.width = localVideo.videoWidth;
+                scanCanvas.height = localVideo.videoHeight;
+                scanCtx.drawImage(localVideo, 0, 0, scanCanvas.width, scanCanvas.height);
+                
+                const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    isScanning = false;
+                    scanStatus.innerText = "Łączenie...";
+                    scanStatus.classList.replace('text-blue-400', 'text-green-400');
+                    scannedIdEl.innerText = code.data;
+                    scannedIdEl.classList.remove('hidden');
+                    
+                    connectToReceiver(code.data);
+                    return;
+                }
+            }
+            requestAnimationFrame(scanQRCode);
+        }
+
+        function connectToReceiver(targetId) {
+            if (peer) peer.destroy();
 
             peer = new Peer({
                 config: {
@@ -98,33 +162,30 @@
 
             peer.on('open', () => {
                 activeCall = peer.call(targetId, localStream);
-                dataConnection = peer.connect(targetId);
+                dataConnection = peer.connect(targetId, { serialization: 'json' });
                 
                 dataConnection.on('open', () => {
-                    connectBtn.classList.replace('bg-blue-600', 'bg-green-600');
-                    connectBtn.innerText = "Połączono!";
+                    scanStatus.innerText = "Połączono pomyślnie!";
                     sendDataBtn.removeAttribute('disabled');
                 });
 
                 dataConnection.on('close', resetSenderUI);
-                dataConnection.on('error', (err) => {
-                    console.error(err);
-                    resetSenderUI();
-                });
+                dataConnection.on('error', resetSenderUI);
             });
 
             peer.on('error', (err) => {
-                alert("Błąd połączenia: " + err.type);
+                console.error(err);
                 resetSenderUI();
             });
-        });
+        }
 
         sendDataBtn.addEventListener('click', () => {
             if (dataConnection && dataConnection.open) {
-                const rawData = jsonInput.value;
                 try {
-                    const parsed = JSON.parse(rawData);
+                    const parsed = JSON.parse(jsonInput.value);
                     dataConnection.send(parsed);
+                    sendDataBtn.innerText = "Wysłano!";
+                    setTimeout(() => sendDataBtn.innerText = "Wyślij JSON", 1000);
                 } catch (e) {
                     alert("Nieprawidłowy format JSON!");
                 }
@@ -140,11 +201,13 @@
             dataConnection = null;
             activeCall = null;
 
-            connectBtn.disabled = false;
-            connectBtn.classList.remove('bg-green-600');
-            connectBtn.classList.add('bg-blue-600');
-            connectBtn.innerText = "Połącz i Przesyłaj";
+            scanStatus.innerText = "Rozłączono. Wznawiam skanowanie...";
+            scanStatus.classList.replace('text-green-400', 'text-blue-400');
+            scannedIdEl.classList.add('hidden');
             sendDataBtn.setAttribute('disabled', 'true');
+            
+            isScanning = true;
+            requestAnimationFrame(scanQRCode);
         }
 
         window.addEventListener('beforeunload', () => {

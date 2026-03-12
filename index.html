@@ -17,14 +17,15 @@
     <div id="status-overlay" class="fixed top-8 left-1/2 -translate-x-1/2 z-[60] bg-slate-800 text-white px-6 py-3 rounded-full font-medium shadow-2xl border border-slate-700 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
     <div id="config-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-6 transition-opacity duration-500">
-        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-md w-full">
-            <h2 class="text-xl font-bold mb-4 text-blue-400">Gotowy do treningu?</h2>
-            <p class="text-sm text-slate-400 mb-6">Wprowadź ID swojego ekranu, aby połączyć się z telefonem.</p>
-            <input type="text" id="peer-id-input" placeholder="np. tv-salon" 
-                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 mb-4 text-white focus:outline-none focus:border-blue-500">
-            <button id="start-receiver-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all disabled:opacity-50">
-                URUCHOM EKRAN
-            </button>
+        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-md w-full flex flex-col items-center">
+            <h2 class="text-xl font-bold mb-4 text-blue-400">Oczekiwanie na urządzenie</h2>
+            <p class="text-sm text-slate-400 mb-6 text-center">Zeskanuj poniższy kod QR w aplikacji z kamerą.</p>
+            
+            <div id="qr-container" class="bg-white p-4 rounded-xl mb-4 hidden">
+                <img id="qr-image" src="" alt="QR Code" class="w-[200px] h-[200px]">
+            </div>
+            
+            <p id="room-id-display" class="text-3xl font-mono font-black tracking-widest text-slate-300 uppercase"></p>
         </div>
     </div>
 

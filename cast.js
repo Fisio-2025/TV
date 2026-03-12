@@ -5,26 +5,24 @@ import './components/ExerciseSidebar.js';
 
 const configOverlay = document.getElementById('config-overlay');
 const mainUi = document.getElementById('main-ui');
-const startBtn = document.getElementById('start-receiver-btn');
-const peerIdInput = document.getElementById('peer-id-input');
 const disconnectBtn = document.getElementById('disconnect-btn');
 const statusOverlay = document.getElementById('status-overlay');
+const qrContainer = document.getElementById('qr-container');
+const qrImage = document.getElementById('qr-image');
+const roomIdDisplay = document.getElementById('room-id-display');
 
 let peer = null;
 let activeConnection = null;
 let activeCall = null;
 
-startBtn.addEventListener('click', () => {
-    const id = peerIdInput.value.trim();
-    if (!id) {
-        showStatus("Wprowadź ID ekranu");
-        return;
-    }
+function generateRandomId() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
-    startBtn.disabled = true;
-    startBtn.innerText = "ŁĄCZENIE...";
+function initPeerSession() {
+    const currentId = generateRandomId();
 
-    peer = new Peer(id, {
+    peer = new Peer(currentId, {
         config: {
             'iceServers': [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -33,72 +31,86 @@ startBtn.addEventListener('click', () => {
         }
     });
 
-    peer.on('open', () => {
-        configOverlay.classList.add('opacity-0');
-        setTimeout(() => {
-            configOverlay.classList.add('hidden');
-            mainUi.classList.remove('hidden');
-            setTimeout(() => mainUi.classList.remove('opacity-0'), 50);
-        }, 500);
-        startBtn.disabled = false;
-        startBtn.innerText = "URUCHOM EKRAN";
+    peer.on('open', (id) => {
+        roomIdDisplay.innerText = id;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${id}&color=0f172a&bgcolor=ffffff`;
+        qrImage.src = qrUrl;
+        qrImage.onload = () => qrContainer.classList.remove('hidden');
+    });
+
+    peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') {
+            peer.destroy();
+            setTimeout(initPeerSession, 300);
+            return;
+        }
+        showStatus("Błąd: " + err.type);
     });
 
     peer.on('call', (call) => {
         activeCall = call;
         call.answer();
         call.on('stream', (remoteStream) => {
-            const videoEl = document.getElementById('remote-video');
-            if (videoEl) videoEl.srcObject = remoteStream;
+            const cameraViews = document.querySelectorAll('camera-view');
+            cameraViews.forEach(view => {
+                if (view.hasAttribute('ismain')) {
+                    const video = view.shadowRoot ? view.shadowRoot.querySelector('video') : view.querySelector('video');
+                    if (video) video.srcObject = remoteStream;
+                }
+            });
         });
         call.on('close', resetUI);
     });
 
     peer.on('connection', (conn) => {
         activeConnection = conn;
+        
+        configOverlay.classList.add('opacity-0');
+        setTimeout(() => {
+            configOverlay.classList.add('hidden');
+            mainUi.classList.remove('hidden');
+            setTimeout(() => mainUi.classList.remove('opacity-0'), 50);
+        }, 500);
+
         conn.on('data', (data) => {
-            try {
-                const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-                handleIncomingData(parsedData);
-            } catch (e) {
-                console.error("Błąd parsowania danych:", e);
-            }
+            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+            handleIncomingData(parsedData);
         });
         conn.on('close', resetUI);
     });
 
     peer.on('disconnected', () => {
         if (peer && !peer.destroyed) {
-            showStatus("Odnawianie połączenia...");
             peer.reconnect();
         }
     });
-
-    peer.on('error', (err) => {
-        if (err.type === 'unavailable-id') {
-            showStatus("ID jest już zajęte. Wybierz inne.");
-            peer = null;
-            startBtn.disabled = false;
-            startBtn.innerText = "URUCHOM EKRAN";
-            return;
-        }
-        showStatus("Błąd: " + err.type);
-        resetUI();
-    });
-});
+}
 
 disconnectBtn.addEventListener('click', resetUI);
 
 function handleIncomingData(data) {
-    console.log("Odebrano JSON z nadajnika:", data);
+    console.log("Otrzymano dane JSON:", data);
 
     if (data.reps !== undefined) {
-        const repEl = document.getElementById('stat-powtórzenia');
-        if (repEl) repEl.innerText = data.reps;
+        const sidebar = document.querySelector('exercise-sidebar');
+        if (sidebar && sidebar.shadowRoot) {
+            const repEl = sidebar.shadowRoot.getElementById('stat-powtórzenia');
+            if (repEl) repEl.innerText = data.reps;
+        }
+        
+        const directRepEl = document.getElementById('stat-powtórzenia');
+        if (directRepEl) directRepEl.innerText = data.reps;
     }
+    
     if (data.title !== undefined) {
         const titleEl = document.getElementById('ui-title');
         if (titleEl) titleEl.innerText = data.title;
+
+        const sidebar = document.querySelector('exercise-sidebar');
+        if (sidebar && sidebar.shadowRoot) {
+            const sidebarTitle = sidebar.shadowRoot.getElementById('ui-title');
+            if (sidebarTitle) sidebarTitle.innerText = data.title;
+        }
     }
 }
 
@@ -110,19 +122,22 @@ function resetUI() {
         peer = null;
     }
 
-    const videoEl = document.getElementById('remote-video');
-    if (videoEl && videoEl.srcObject) {
-        videoEl.srcObject.getTracks().forEach(track => track.stop());
-        videoEl.srcObject = null;
-    }
+    const videos = document.querySelectorAll('video');
+    videos.forEach(v => {
+        if (v.srcObject) {
+            v.srcObject.getTracks().forEach(t => t.stop());
+            v.srcObject = null;
+        }
+    });
 
     mainUi.classList.add('opacity-0');
     setTimeout(() => {
         mainUi.classList.add('hidden');
         configOverlay.classList.remove('hidden');
+        qrContainer.classList.add('hidden');
+        roomIdDisplay.innerText = '';
         setTimeout(() => configOverlay.classList.remove('opacity-0'), 50);
-        startBtn.disabled = false;
-        startBtn.innerText = "URUCHOM EKRAN";
+        initPeerSession();
     }, 500);
 
     activeConnection = null;
@@ -138,3 +153,5 @@ function showStatus(text) {
 window.addEventListener('beforeunload', () => {
     if (peer) peer.destroy();
 });
+
+initPeerSession();
