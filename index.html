@@ -6,10 +6,9 @@
     <title>Trening Receiver TV</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        /* RESET I PODSTAWOWE STYLE */
         * { box-sizing: border-box; }
         body { 
-            font-family: 'Inter', -apple-system, sans-serif; 
+            font-family: sans-serif; 
             background-color: #0f172a; 
             color: white; 
             margin: 0; 
@@ -21,10 +20,9 @@
         .opacity-0 { opacity: 0; }
         .flex { display: flex; }
 
-        /* CONFIG OVERLAY */
         #config-overlay {
             position: fixed; inset: 0; z-index: 50;
-            background: rgba(15, 23, 42, 0.98);
+            background: #0f172a;
             display: flex; align-items: center; justify-content: center;
             transition: opacity 0.5s;
         }
@@ -32,27 +30,23 @@
             background: #1e293b; padding: 40px; border-radius: 24px;
             border: 1px solid #334155; text-align: center; max-width: 500px;
         }
-        #qr-container { background: white; padding: 15px; border-radius: 16px; margin: 20px 0; }
+        #qr-container { background: white; padding: 15px; border-radius: 16px; margin: 20px 0; display: inline-block; }
         #room-id-display { font-family: monospace; font-size: 40px; font-weight: 900; color: #38bdf8; letter-spacing: 4px; }
 
-        /* GŁÓWNY INTERFEJS */
         #main-ui { display: flex; height: 100vh; padding: 24px; gap: 24px; transition: opacity 0.5s; }
         
-        /* KAMERY */
-        .camera-section { flex: 1; display: flex; gap: 16px; margin-top: 60px; }
+        .camera-section { flex: 1; display: flex; flex-direction: column; gap: 16px; }
         .camera-view { 
             flex: 1; background: #1e293b; border-radius: 20px; 
             position: relative; overflow: hidden; border: 1px solid #334155;
         }
         .camera-label { position: absolute; top: 16px; left: 16px; font-weight: bold; font-size: 14px; color: #94a3b8; z-index: 10; }
         .camera-status { position: absolute; top: 16px; right: 16px; font-family: monospace; color: #94a3b8; z-index: 10; }
-        video { width: 100%; height: 100%; object-fit: cover; }
+        video { width: 100%; height: 100%; object-fit: cover; background: #000; }
 
-        /* SIDEBAR */
-        .sidebar { width: 450px; background: #f8fafc; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; color: #1e293b; margin-top: 60px; }
+        .sidebar { width: 450px; background: #f8fafc; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; color: #1e293b; }
         .sidebar-title { font-size: 28px; font-weight: 800; margin: 0 0 20px 0; color: #0f172a; }
         
-        /* STATYSTYKI */
         .stats-grid { display: flex; gap: 16px; margin-bottom: 30px; }
         .stat-box { 
             flex: 1; background: white; padding: 16px; border-radius: 20px; 
@@ -61,23 +55,27 @@
         .stat-label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
         .stat-value-group { display: flex; align-items: baseline; gap: 4px; margin-top: 4px; }
         .stat-current { font-size: 36px; font-weight: 900; color: #4361ee; }
-        .stat-total { color: #cbd5e1; font-weight: bold; }
+        .stat-total { color: #cbd5e1; font-weight: bold; font-size: 18px; }
 
-        /* LISTA ĆWICZEŃ */
         .exercise-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
         .ex-item { 
             display: flex; align-items: center; justify-content: space-between; 
             padding: 12px 16px; border-radius: 12px; border: 1px solid transparent; 
         }
         .ex-item.active { background: #eff6ff; border-color: #dbeafe; }
+        .ex-number { font-weight: 900; font-size: 14px; width: 20px; }
         .ex-name { font-weight: 800; font-size: 14px; color: #1e293b; }
         .ex-details { font-size: 12px; color: #94a3b8; }
-        .ex-badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
+        .ex-badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; text-transform: uppercase; }
 
         #disconnect-btn {
             position: absolute; top: 24px; right: 24px; z-index: 100;
-            background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.5);
+            background: #fee2e2; border: 1px solid #fca5a5;
             color: #ef4444; padding: 10px 24px; border-radius: 30px; font-weight: bold; cursor: pointer;
+        }
+
+        .stickman-placeholder {
+            height: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.2;
         }
     </style>
 </head>
@@ -88,7 +86,7 @@
             <h2 style="color: #38bdf8; margin: 0;">Oczekiwanie na połączenie</h2>
             <p style="color: #94a3b8; margin: 10px 0 20px 0;">Zeskanuj kod QR w aplikacji mobilnej</p>
             <div id="qr-container" class="hidden">
-                <img id="qr-image" src="" alt="QR" style="width: 200px; height: 200px; display: block; margin: 0 auto;">
+                <img id="qr-image" src="" alt="QR" style="width: 200px; height: 200px; display: block;">
             </div>
             <div id="room-id-display">------</div>
         </div>
@@ -106,7 +104,7 @@
             <div class="camera-view">
                 <div class="camera-label">WIDOK WZORCOWY</div>
                 <div class="camera-status">AI ACTIVE</div>
-                <div style="height: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.2;">
+                <div class="stickman-placeholder">
                     <svg width="60" height="120" viewBox="0 0 48 120" fill="none" stroke="white" stroke-width="4">
                         <circle cx="24" cy="16" r="10"/>
                         <line x1="24" y1="26" x2="24" y2="70" />
@@ -140,48 +138,51 @@
                 </div>
             </div>
 
-            <div class="exercise-list" id="ui-exercise-list">
-                </div>
+            <div class="exercise-list" id="ui-exercise-list"></div>
         </div>
     </div>
 
     <script>
-        // ELEMENTY DOM
-        const configOverlay = document.getElementById('config-overlay');
-        const mainUi = document.getElementById('main-ui');
-        const qrContainer = document.getElementById('qr-container');
-        const qrImage = document.getElementById('qr-image');
-        const roomIdDisplay = document.getElementById('room-id-display');
-        const disconnectBtn = document.getElementById('disconnect-btn');
-        const remoteVideo = document.getElementById('remote-video');
-        const statReps = document.getElementById('stat-reps');
-        const uiTitle = document.getElementById('ui-title');
+        var configOverlay = document.getElementById('config-overlay');
+        var mainUi = document.getElementById('main-ui');
+        var qrContainer = document.getElementById('qr-container');
+        var qrImage = document.getElementById('qr-image');
+        var roomIdDisplay = document.getElementById('room-id-display');
+        var disconnectBtn = document.getElementById('disconnect-btn');
+        var remoteVideo = document.getElementById('remote-video');
+        var statReps = document.getElementById('stat-reps');
+        var uiTitle = document.getElementById('ui-title');
+        var exerciseList = document.getElementById('ui-exercise-list');
 
-        let peer = null;
-        let activeConnection = null;
-        let activeCall = null;
+        var peer = null;
+        var activeConnection = null;
+        var activeCall = null;
 
-        const exercises = [
+        var exercises = [
             { number: 1, name: 'Push-ups', details: '3 powtórzenia', active: true, type: 'Isotonic' },
             { number: 2, name: 'Sit-ups', details: '5 powtórzenia', active: false, type: 'Isotonic' },
             { number: 3, name: 'Squats', details: '7 powtórzenia', active: false, type: 'Isotonic' }
         ];
 
-        // RENDEROWANIE LISTY ĆWICZEŃ
         function renderExercises() {
-            const list = document.getElementById('ui-exercise-list');
-            list.innerHTML = exercises.map(e => `
-                <div class="ex-item ${e.active ? 'active' : ''}">
-                    <div class="flex" style="align-items: center; gap: 15px;">
-                        <span style="font-weight: 900; color: ${e.active ? '#4361ee' : '#cbd5e1'}">${e.number}</span>
-                        <div>
-                            <div class="ex-name">${e.name}</div>
-                            <div class="ex-details">${e.details}</div>
-                        </div>
-                    </div>
-                    <span class="ex-badge">${e.type}</span>
-                </div>
-            `).join('');
+            var html = '';
+            for (var i = 0; i < exercises.length; i++) {
+                var e = exercises[i];
+                var activeClass = e.active ? ' active' : '';
+                var numColor = e.active ? '#4361ee' : '#cbd5e1';
+                
+                html += '<div class="ex-item' + activeClass + '">' +
+                            '<div class="flex" style="align-items: center; gap: 15px;">' +
+                                '<span class="ex-number" style="color: ' + numColor + '">' + e.number + '</span>' +
+                                '<div>' +
+                                    '<div class="ex-name">' + e.name + '</div>' +
+                                    '<div class="ex-details">' + e.details + '</div>' +
+                                '</div>' +
+                            '</div>' +
+                            '<span class="ex-badge">' + e.type + '</span>' +
+                        '</div>';
+            }
+            exerciseList.innerHTML = html;
         }
 
         function generateRandomId() {
@@ -189,60 +190,76 @@
         }
 
         function initPeerSession() {
-            const currentId = generateRandomId();
+            var currentId = generateRandomId();
+            
             peer = new Peer(currentId, {
                 config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
 
-            peer.on('open', (id) => {
+            peer.on('open', function(id) {
                 roomIdDisplay.innerText = id;
-                const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + id;
+                var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + id;
                 qrImage.src = qrUrl;
-                qrImage.onload = () => qrContainer.classList.remove('hidden');
+                qrImage.onload = function() {
+                    qrContainer.classList.remove('hidden');
+                };
             });
 
-            peer.on('connection', (conn) => {
+            peer.on('connection', function(conn) {
                 activeConnection = conn;
                 switchToMainUI();
-                conn.on('data', handleIncomingData);
+                conn.on('data', function(data) {
+                    handleIncomingData(data);
+                });
                 conn.on('close', resetUI);
             });
 
-            peer.on('call', (call) => {
+            peer.on('call', function(call) {
                 activeCall = call;
                 call.answer();
-                call.on('stream', (stream) => {
+                call.on('stream', function(stream) {
                     remoteVideo.srcObject = stream;
                 });
+            });
+
+            peer.on('error', function(err) {
+                if (err.type === 'unavailable-id') {
+                    peer.destroy();
+                    setTimeout(initPeerSession, 300);
+                }
             });
         }
 
         function handleIncomingData(data) {
-            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-            if (parsed.reps !== undefined) statReps.innerText = parsed.reps;
-            if (parsed.title !== undefined) uiTitle.innerText = parsed.title;
+            var parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            if (parsed.reps !== undefined) {
+                statReps.innerText = parsed.reps;
+            }
+            if (parsed.title !== undefined) {
+                uiTitle.innerText = parsed.title;
+            }
         }
 
         function switchToMainUI() {
             configOverlay.classList.add('opacity-0');
-            setTimeout(() => {
+            setTimeout(function() {
                 configOverlay.classList.add('hidden');
                 mainUi.classList.remove('hidden');
                 disconnectBtn.classList.remove('hidden');
-                setTimeout(() => mainUi.classList.remove('opacity-0'), 50);
+                setTimeout(function() {
+                    mainUi.classList.remove('opacity-0');
+                }, 50);
             }, 500);
         }
 
         function resetUI() {
-            location.reload(); // Najbezpieczniejsza metoda czyszczenia sesji na TV
+            location.reload();
         }
 
         disconnectBtn.addEventListener('click', resetUI);
-        
-        // Inicjalizacja
+
         renderExercises();
         initPeerSession();
-
     </script>
 </body>
 </html>
