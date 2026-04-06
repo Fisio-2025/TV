@@ -14,7 +14,7 @@ def start_ssdp_responder(local_ip):
     group = ('239.255.255.250', 1900)
     ssdp_sock.bind(('', 1900))
     
-    mreq = socket.inet_aton(group[0]) + socket.inet_aton('0.0.0.0')
+    mreq = socket.inet_aton(group[0]) + socket.inet_aton(local_ip)
     ssdp_sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
     print(f"[*] Responder SSDP aktywny na {local_ip}...")
@@ -76,6 +76,7 @@ def get_my_ip():
         s.connect(('8.8.8.8', 1))
         ip = s.getsockname()[0]
     except Exception:
+        print("Working on localhost")
         ip = '127.0.0.1'
     finally:
         s.close()
